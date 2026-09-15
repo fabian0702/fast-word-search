@@ -1,0 +1,5 @@
+*.o
+*.new
+*.bin
+tmp/
+output.txt

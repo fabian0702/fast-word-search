@@ -1,0 +1,149 @@
+#include "trigram_builder.hpp"
+#include "trigram_query.hpp"
+
+#include "httplib.h"
+
+#include <mutex>
+
+int main(int argc, char *argv[])
+{
+    if (argc != 2)
+    {
+        std::cerr << "usage: <program> <content_file_path>" << std::endl;
+        std::exit(1);
+    }
+
+    char *content_file_path = argv[1];
+
+    if (!std::filesystem::exists(content_file_path))
+        std::runtime_error("content file should already exist (touch <content_file_path>)");
+
+    pid_t pid = getpid();
+    std::cout << "Process ID: " << pid << std::endl;
+
+    auto input_file = MemoryMappedFile<uint8_t>(content_file_path);
+
+    httplib::Server svr;
+
+    std::mutex build_mutex;
+
+    svr.Get("/build/", [&input_file, &build_mutex](const httplib::Request &req, httplib::Response &res)
+            {
+        std::lock_guard build_in_progress(build_mutex);         // enforce that only one build process runs at the same time (they might overwrite each others shards / output files)
+
+        TrigramBuilder::build(input_file);
+
+        res.status = 200;
+        res.set_content("index rebuilt", "text/plain"); 
+    });
+
+    svr.Get("/search/unverified", [](const httplib::Request &req, httplib::Response &res)
+            {
+
+        if (!req.has_param("query")) {
+            res.status = 400;
+            res.set_content("No query parameter specified", "text/plain");
+
+            return;
+        }
+
+        std::string query = req.get_param_value("query");
+        
+        TrigramQuery query_engine;
+
+        auto results = query_engine.unverified_query(query);
+
+        res.status = 200;
+        res.set_chunked_content_provider(
+            "text/plain",
+            [results = std::move(results), index = size_t{0}]
+            (size_t, httplib::DataSink& sink) mutable {
+                if (index == results.size()) {
+                    sink.done();
+                    return true;
+                }
+
+                auto line = std::to_string(results[index++]) + '\n';
+                return sink.write(line.data(), line.size());
+            });
+    });
+
+    svr.Get("/search/verified", [&input_file](const httplib::Request &req, httplib::Response &res)
+            {
+
+        if (!req.has_param("query")) {
+            res.status = 400;
+            res.set_content("No query parameter specified", "text/plain");
+
+            return;
+        }
+
+        std::string query = req.get_param_value("query");
+        
+        TrigramQuery query_engine;
+
+        auto results = query_engine.query(query, input_file);
+
+        res.status = 200;
+        res.set_chunked_content_provider(
+            "text/plain",
+            [results = std::move(results), index = size_t{0}]
+            (size_t, httplib::DataSink& sink) mutable {
+                if (index == results.size()) {
+                    sink.done();
+                    return true;
+                }
+
+                auto line = std::to_string(results[index++]) + '\n';
+                return sink.write(line.data(), line.size());
+            });
+    });
+
+    svr.Get("/search/results", [&input_file](const httplib::Request &req, httplib::Response &res)
+            {
+
+        if (!req.has_param("query")) {
+            res.status = 400;
+            res.set_content("No query parameter specified", "text/plain");
+
+            return;
+        }
+
+        std::string query = req.get_param_value("query");
+        
+        TrigramQuery query_engine;
+
+        auto results = query_engine.query_with_results(query, input_file);
+
+        res.status = 200;
+        res.set_chunked_content_provider(
+            "text/plain",
+            [results = std::move(results), index = size_t{0}](size_t, httplib::DataSink& sink) mutable {
+                if (index == results.size()) {
+                    sink.done();
+                    return true;
+                }
+
+                const auto& result = results[index++];
+                return sink.write(result.data(), result.size());
+            }
+        ); 
+    });
+
+    svr.set_exception_handler([](const auto &req, auto &res, std::exception_ptr ep)
+                              {
+        auto fmt = "<h1>Error 500</h1><p>%s</p>";
+        char buf[BUFSIZ];
+        try {
+            std::rethrow_exception(ep);
+        } catch (std::exception &e) {
+            snprintf(buf, sizeof(buf), fmt, e.what());
+        } catch (...) { // See the following NOTE
+            snprintf(buf, sizeof(buf), fmt, "Unknown Exception");
+        }
+        res.set_content(buf, "text/html");
+        res.status = 500; 
+    });
+
+    svr.listen("0.0.0.0", 8000);
+}
