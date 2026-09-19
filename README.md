@@ -10,5 +10,9 @@ THere is a http api on port 8000 (Endpoints listed below)
 - /search/verified?query=... -> launch a query and get back a list of line numbers where the query is definitely part (fast)
 - /search/results?query=... -> launch a query and get back the lines where the query is definitely part (slowest)
 
+# Setup
+
+Create the necessary mountpoint with `mount -t tmpfs -o size=64G tmpfs /mnt/tmpfs`
+
 ## Building
 Depending on filesize it might take multiple minutes (~10min at 4GB of text). The final index for a ~4GB file of text will be ~18GB and building the index required ~50GB of free disk space. To add more content add the content to the file and trigger a rebuild with /build/
