@@ -68,7 +68,7 @@ class ShardsManager
     std::vector<int> fds;
     std::vector<std::mutex> mutexes;
 
-    std::string base_directory = "/dev/shm/shards/";
+    std::string base_directory = "/mnt/tmpfs/shards/";
 
 public:
     std::vector<int> non_empty_shards;
