@@ -137,6 +137,8 @@ public:
 
         size_t amount_copied = 0, total_size = this->_size * sizeof(T);
 
+        Progress pb_copy_file("copy file", total_size);
+
         while (amount_copied < total_size)
         {
             ssize_t n = ::write(new_fd, (uint8_t *)this->buffer + amount_copied, total_size - amount_copied);
@@ -144,8 +146,9 @@ public:
                 std::perror("write");
                 throw std::runtime_error("write failed");
             }
+            pb_copy_file.add(n);
         }
-        
+        pb_copy_file.finish()
     }
 };
 
