@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <string>
 
-#include <src/progress.hpp>
+#include "progress.hpp"
 
 template <typename T>
 class MemoryMappedFile
