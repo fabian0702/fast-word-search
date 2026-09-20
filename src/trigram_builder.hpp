@@ -26,7 +26,7 @@ class TrigramBuilder
 public:
     TrigramBuilder() {}
 
-    static void build(MemoryMappedFile<uint8_t> &input_file, bool build_ids_file);
+    static void build(bool build_ids_file);
 
     static void generate_unique_trigrams(std::vector<uint32_t> &grams, uint8_t *buffer, uint8_t *end);
 

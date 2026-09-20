@@ -24,11 +24,11 @@ class TrigramQuery
 public:
     TrigramQuery() : mapping("mapping.bin"), index("index.bin"), offsets("offsets.bin"), ids("ids.bin") {}
 
-    std::vector<std::string> query_with_results(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file);
+    std::vector<std::string> query_with_results(const std::string &query_string);
 
     std::vector<uint32_t> unverified_query(const std::string &query_string);
 
-    std::vector<uint64_t> query(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file);
+    std::vector<uint64_t> query(const std::string &query_string);
 };
 
 #endif

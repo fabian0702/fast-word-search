@@ -7,39 +7,26 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc != 2)
-    {
-        std::cerr << "usage: <program> <content_file_path>" << std::endl;
-        std::exit(1);
-    }
-
-    char *content_file_path = argv[1];
-
-    if (!std::filesystem::exists(content_file_path))
-        std::runtime_error("content file should already exist (touch <content_file_path>)");
-
     pid_t pid = getpid();
     std::cout << "Process ID: " << pid << std::endl;
-
-    auto input_file = MemoryMappedFile<uint8_t>(content_file_path);
 
     httplib::Server svr;
 
     std::mutex build_mutex;
 
-    svr.Get("/build/", [&input_file, &build_mutex](const httplib::Request &req, httplib::Response &res)
+    svr.Get("/build/", [&build_mutex](const httplib::Request &req, httplib::Response &res)
             {
         std::lock_guard build_in_progress(build_mutex);         // enforce that only one build process runs at the same time (they might overwrite each others shards / output files)
 
         bool build_ids = req.has_param("ids") && req.get_param_value("ids") == "linear";
 
-        TrigramBuilder::build(input_file, build_ids);
+        TrigramBuilder::build(build_ids);
 
         res.status = 200;
         res.set_content("index rebuilt", "text/plain"); 
     });
 
-    svr.Get("/search", [&input_file](const httplib::Request &req, httplib::Response &res)
+    svr.Get("/search", [](const httplib::Request &req, httplib::Response &res)
             {
 
         if (!req.has_param("query")) {
@@ -53,13 +40,13 @@ int main(int argc, char *argv[])
         
         TrigramQuery query_engine;
 
-        auto results = query_engine.query(query, input_file);
+        auto results = query_engine.query(query);
 
         res.status = 200;
         res.set_content((const char *)results.data(), results.size() * sizeof(uint64_t), "application/octet-stream");
     });
 
-    svr.Get("/search/results", [&input_file](const httplib::Request &req, httplib::Response &res)
+    svr.Get("/search/results", [](const httplib::Request &req, httplib::Response &res)
             {
 
         if (!req.has_param("query")) {
@@ -73,7 +60,7 @@ int main(int argc, char *argv[])
         
         TrigramQuery query_engine;
 
-        auto results = query_engine.query_with_results(query, input_file);
+        auto results = query_engine.query_with_results(query);
 
         res.status = 200;
         res.set_chunked_content_provider(

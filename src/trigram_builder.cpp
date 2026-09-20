@@ -1,7 +1,9 @@
 #include "trigram_builder.hpp"
 
-void TrigramBuilder::build(MemoryMappedFile<uint8_t> &input_file, bool build_ids_file)
+void TrigramBuilder::build(bool build_ids_file)
 {
+    MemoryMappedFile<uint8_t> input_file("content.bin.new");
+
     std::vector<uint64_t> line_boundaries;
 
     uint64_t num_lines = TrigramBuilder::compute_line_boundaries(input_file, line_boundaries);
@@ -275,5 +277,8 @@ void TrigramBuilder::replace_active_index(MemoryMappedFile<uint8_t> &input_file)
         std::runtime_error("failed moving mapping.bin.new to mapping.bin");
     }
 
-    input_file.copy_content("content.bin", true);
+    if (::rename("content.bin.new", "content.bin") != 0) {
+        std::perror("rename");
+        std::runtime_error("failed moving mapping.bin.new to mapping.bin");
+    }
 }

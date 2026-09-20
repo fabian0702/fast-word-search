@@ -54,7 +54,9 @@ std::vector<uint32_t> TrigramQuery::unverified_query(const std::string &query_st
     return line_options;
 }
 
-std::vector<uint64_t> TrigramQuery::query(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file){
+std::vector<uint64_t> TrigramQuery::query(const std::string &query_string) {
+    const MemoryMappedFile<uint8_t> input_file("content.bin");
+
     std::vector<uint32_t> line_options = this->unverified_query(query_string);
 
     std::vector<uint64_t> lines_found;
@@ -74,7 +76,9 @@ std::vector<uint64_t> TrigramQuery::query(const std::string &query_string, const
     return lines_found;
 }
 
-std::vector<std::string> TrigramQuery::query_with_results(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file) {
+std::vector<std::string> TrigramQuery::query_with_results(const std::string &query_string) {
+    const MemoryMappedFile<uint8_t> input_file("content.bin");
+    
     std::vector<uint32_t> line_options = this->unverified_query(query_string);
 
     std::vector<std::string> lines_found;
