@@ -150,7 +150,7 @@ public:
             }
             pb_copy_file.add(n);
         }
-        pb_copy_file.finish()
+        pb_copy_file.finish();
     }
 };
 
