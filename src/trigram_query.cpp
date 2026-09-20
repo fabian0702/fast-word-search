@@ -54,10 +54,10 @@ std::vector<uint32_t> TrigramQuery::unverified_query(const std::string &query_st
     return line_options;
 }
 
-std::vector<uint32_t> TrigramQuery::query(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file){
+std::vector<uint64_t> TrigramQuery::query(const std::string &query_string, const MemoryMappedFile<uint8_t> &input_file){
     std::vector<uint32_t> line_options = this->unverified_query(query_string);
 
-    std::vector<uint32_t> lines_found;
+    std::vector<uint64_t> lines_found;
     lines_found.reserve(line_options.size());
 
     for (auto line_id : line_options)
@@ -66,7 +66,7 @@ std::vector<uint32_t> TrigramQuery::query(const std::string &query_string, const
         const uint8_t *start_ptr = input_file.begin() + start_offset,
                       *end_ptr = input_file.begin() + end_offset;
         if (std::search(start_ptr, end_ptr, query_string.begin(), query_string.end()) != end_ptr)
-            lines_found.push_back(line_id);
+            lines_found.push_back(ids.at(line_id));
     }
 
     std::cout << "Found " << lines_found.size() << " actual results" << std::endl;

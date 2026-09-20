@@ -31,44 +31,15 @@ int main(int argc, char *argv[])
             {
         std::lock_guard build_in_progress(build_mutex);         // enforce that only one build process runs at the same time (they might overwrite each others shards / output files)
 
-        TrigramBuilder::build(input_file);
+        bool build_ids = req.has_param("ids") && req.get_param_value("ids") == "linear";
+
+        TrigramBuilder::build(input_file, build_ids);
 
         res.status = 200;
         res.set_content("index rebuilt", "text/plain"); 
     });
 
-    svr.Get("/search/unverified", [](const httplib::Request &req, httplib::Response &res)
-            {
-
-        if (!req.has_param("query")) {
-            res.status = 400;
-            res.set_content("No query parameter specified", "text/plain");
-
-            return;
-        }
-
-        std::string query = req.get_param_value("query");
-        
-        TrigramQuery query_engine;
-
-        auto results = query_engine.unverified_query(query);
-
-        res.status = 200;
-        res.set_chunked_content_provider(
-            "text/plain",
-            [results = std::move(results), index = size_t{0}]
-            (size_t, httplib::DataSink& sink) mutable {
-                if (index == results.size()) {
-                    sink.done();
-                    return true;
-                }
-
-                auto line = std::to_string(results[index++]) + '\n';
-                return sink.write(line.data(), line.size());
-            });
-    });
-
-    svr.Get("/search/verified", [&input_file](const httplib::Request &req, httplib::Response &res)
+    svr.Get("/search", [&input_file](const httplib::Request &req, httplib::Response &res)
             {
 
         if (!req.has_param("query")) {
@@ -85,18 +56,7 @@ int main(int argc, char *argv[])
         auto results = query_engine.query(query, input_file);
 
         res.status = 200;
-        res.set_chunked_content_provider(
-            "text/plain",
-            [results = std::move(results), index = size_t{0}]
-            (size_t, httplib::DataSink& sink) mutable {
-                if (index == results.size()) {
-                    sink.done();
-                    return true;
-                }
-
-                auto line = std::to_string(results[index++]) + '\n';
-                return sink.write(line.data(), line.size());
-            });
+        res.set_content((const char *)results.data(), results.size() * sizeof(uint64_t), "application/octet-stream");
     });
 
     svr.Get("/search/results", [&input_file](const httplib::Request &req, httplib::Response &res)

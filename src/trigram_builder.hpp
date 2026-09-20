@@ -26,7 +26,7 @@ class TrigramBuilder
 public:
     TrigramBuilder() {}
 
-    static void build(MemoryMappedFile<uint8_t> &input_file);
+    static void build(MemoryMappedFile<uint8_t> &input_file, bool build_ids_file);
 
     static void generate_unique_trigrams(std::vector<uint32_t> &grams, uint8_t *buffer, uint8_t *end);
 
@@ -46,7 +46,9 @@ private:
 
     static size_t get_longest_line(std::vector<uint64_t> &line_boundaries);
 
-    static void replace_active_index();
+    static void replace_active_index(MemoryMappedFile<uint8_t> &input_file);
+
+    static void build_ids(std::vector<uint64_t> &line_boundaries);
 };
 
 #endif

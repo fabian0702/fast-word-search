@@ -1,6 +1,6 @@
 #include "trigram_builder.hpp"
 
-void TrigramBuilder::build(MemoryMappedFile<uint8_t> &input_file)
+void TrigramBuilder::build(MemoryMappedFile<uint8_t> &input_file, bool build_ids_file)
 {
     std::vector<uint64_t> line_boundaries;
 
@@ -22,7 +22,25 @@ void TrigramBuilder::build(MemoryMappedFile<uint8_t> &input_file)
 
     TrigramBuilder::create_mapping(mapping);
 
-    TrigramBuilder::replace_active_index();
+    if (build_ids_file)
+        TrigramBuilder::build_ids(line_boundaries);
+
+    TrigramBuilder::replace_active_index(input_file);
+}
+
+void TrigramBuilder::build_ids(std::vector<uint64_t> &line_boundaries) {
+    MemoryMappedFile<uint64_t> ids_file("ids.bin.new", line_boundaries.size());
+
+    Progress pb_create_ids("creating line -> ids mapping", line_boundaries.size());
+
+    for (uint64_t i = 0; i < line_boundaries.size(); i++) {
+        ids_file[i] = i;
+        
+        if (i % pb_create_ids.quantum == 0)
+            pb_create_ids.update(i);
+    }
+
+    pb_create_ids.finish();
 }
 
 void TrigramBuilder::create_mapping(MemoryMappedFile<MappingIndex> &mapping)
@@ -45,7 +63,7 @@ void TrigramBuilder::create_mapping(MemoryMappedFile<MappingIndex> &mapping)
     pb_create_mapping.finish();
 }
 
-void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<u_int64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair, 1 << 20> &shards_manager)
+void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<uint64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair, 1 << 20> &shards_manager)
 {
 
     uint64_t num_lines = line_boundaries.size();
@@ -236,7 +254,7 @@ uint32_t TrigramBuilder::build_trigram(uint8_t *buffer)
     return (buffer[2] << 16) + (buffer[1] << 8) + buffer[0];
 }
 
-void TrigramBuilder::replace_active_index() {
+void TrigramBuilder::replace_active_index(MemoryMappedFile<uint8_t> &input_file) {
     if (::rename("mapping.bin.new", "mapping.bin") != 0) {
         std::perror("rename");
         std::runtime_error("failed moving mapping.bin.new to mapping.bin");
@@ -251,4 +269,11 @@ void TrigramBuilder::replace_active_index() {
         std::perror("rename");
         std::runtime_error("failed moving mapping.bin.new to mapping.bin");
     }
+
+    if (::rename("ids.bin.new", "ids.bin") != 0) {
+        std::perror("rename");
+        std::runtime_error("failed moving mapping.bin.new to mapping.bin");
+    }
+
+    input_file.copy_content("content.bin", true);
 }
