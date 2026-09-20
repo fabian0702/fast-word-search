@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <string>
 
+#include <src/progress.hpp>
+
 template <typename T>
 class MemoryMappedFile
 {
@@ -133,7 +135,7 @@ public:
     }
 
     void copy_content(const char *new_file, bool should_replace) {
-        int new_fd = ::open(new_file, O_RDWR | O_CREAT | (should_replace ? O_TRUNC : O_APPEND));
+        int new_fd = ::open(new_file, O_RDWR | O_CREAT | (should_replace ? O_TRUNC : O_APPEND), 0666);
 
         size_t amount_copied = 0, total_size = this->_size * sizeof(T);
 
