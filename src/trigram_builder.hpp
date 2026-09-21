@@ -1,5 +1,4 @@
-#ifndef TRIGRAM_BUILDER_H
-#define TRIGRAM_BUILDER_H
+#pragma once
 
 #include <algorithm>
 #include <vector>
@@ -19,6 +18,7 @@
 #include "definitions.hpp"
 #include "progress.hpp"
 #include "thread_pool.hpp"
+#include "shard.hpp"
 
 
 class TrigramBuilder
@@ -36,9 +36,9 @@ private:
 
     static void create_mapping(MemoryMappedFile<MappingIndex> &mapping);
 
-    static void create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<u_int64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair, 1 << 20> &shards_manager);
+    static void create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<u_int64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair> &shards_manager);
 
-    static void process_shards(ShardsManager<ShardIndexPair, 1 << 20> &shards_manager, MemoryMappedFile<MappingIndex> &mapping);
+    static void process_shards(ShardsManager<ShardIndexPair> &shards_manager, MemoryMappedFile<MappingIndex> &mapping);
 
     static void create_offsets_file(std::vector<uint64_t> &line_boundaries);
 
@@ -50,5 +50,3 @@ private:
 
     static void build_ids(std::vector<uint64_t> &line_boundaries);
 };
-
-#endif

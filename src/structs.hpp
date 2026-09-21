@@ -1,5 +1,4 @@
-#ifndef STRUCTS_H
-#define STRUCTS_H
+#pragma once
 
 #include <cstdint>
 #include <iostream>
@@ -32,5 +31,3 @@ struct MappingIndex
         return ostream;
     }
 } __attribute__((packed));
-
-#endif

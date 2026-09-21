@@ -5,22 +5,16 @@ void TrigramBuilder::build(bool build_ids_file)
     MemoryMappedFile<uint8_t> input_file("content.bin.new");
 
     std::vector<uint64_t> line_boundaries;
-
     uint64_t num_lines = TrigramBuilder::compute_line_boundaries(input_file, line_boundaries);
 
     size_t longest_line = TrigramBuilder::get_longest_line(line_boundaries);
-
     TrigramBuilder::create_offsets_file(line_boundaries);
 
-    ShardsManager<ShardIndexPair, 1 << 20> shards_manager;
-
+    ShardsManager<ShardIndexPair> shards_manager;
     TrigramBuilder::create_shards(input_file, line_boundaries, longest_line, shards_manager);
 
     MemoryMappedFile<MappingIndex> mapping("mapping.bin.new", MAX_TRIGRAMS);
-
     TrigramBuilder::process_shards(shards_manager, mapping);
-
-    shards_manager.cleanup();
 
     TrigramBuilder::create_mapping(mapping);
 
@@ -54,6 +48,7 @@ void TrigramBuilder::create_mapping(MemoryMappedFile<MappingIndex> &mapping)
     {
         if (gram_id % pb_create_mapping.quantum == 0)
             pb_create_mapping.update(gram_id);
+            
         uint64_t current_count = mapping[gram_id].count;
         if (current_count)
         {
@@ -65,7 +60,7 @@ void TrigramBuilder::create_mapping(MemoryMappedFile<MappingIndex> &mapping)
     pb_create_mapping.finish();
 }
 
-void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<uint64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair, 1 << 20> &shards_manager)
+void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::vector<uint64_t> &line_boundaries, uint64_t longest_line, ShardsManager<ShardIndexPair> &shards_manager)
 {
 
     uint64_t num_lines = line_boundaries.size();
@@ -80,8 +75,6 @@ void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::v
 
         for (uint32_t i = start; i < end; i += step)
         {
-            // std::cout << i << std::endl;
-
             if (i % pb_create_shards.quantum == 0)
                 pb_create_shards.add(pb_create_shards.quantum);
 
@@ -106,11 +99,9 @@ void TrigramBuilder::create_shards(MemoryMappedFile<uint8_t> &input_file, std::v
     creation_pool.join();
 
     pb_create_shards.finish();
-
-    shards_manager.close();
 }
 
-void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair, 1 << 20> &shards_manager, MemoryMappedFile<MappingIndex> &mapping)
+void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair> &shards_manager, MemoryMappedFile<MappingIndex> &mapping)
 {
     int num_non_empty_shards = shards_manager.find_non_empty_shards();
 
@@ -127,17 +118,19 @@ void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair, 1 << 20> &shar
 
     auto shard_worker = [&](uint64_t start, uint64_t end, uint64_t step)
     {
-        // std::cout << start << " " << end << " " << step << std::endl;
         for (int i = start; i < end; i += step)
         {
             int shard_id = shards_manager.non_empty_shards[i];
-            auto file_name = shards_manager.files[shard_id];
 
-            MemoryMappedFile<ShardIndexPair> mapped_shard(file_name);
+            auto consolidated = shards_manager.shards[shard_id].consolidate();
+
+            auto consolidated_start = consolidated.get();
+            auto consolidated_end = consolidated_start + shards_manager.shards[i].size();
+
 
             std::sort(
-                mapped_shard.begin(),
-                mapped_shard.end(),
+                consolidated_start,
+                consolidated_end,
                 [](const ShardIndexPair &a, const ShardIndexPair &b)
                 {
                     if (a.shard_offset != b.shard_offset)
@@ -148,16 +141,16 @@ void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair, 1 << 20> &shar
             uint32_t last_shard_offset = -1;
             uint64_t current_count = 0;
 
-            for (const ShardIndexPair pair : mapped_shard)
+            for (ShardIndexPair *pair = consolidated_start; pair < consolidated_end; pair++)
             {
                 if (last_shard_offset == -1)
-                    last_shard_offset = pair.shard_offset;
+                    last_shard_offset = pair->shard_offset;
 
-                if (last_shard_offset != pair.shard_offset)
+                if (last_shard_offset != pair->shard_offset)
                 {
                     mapping[(shard_id << 16) | last_shard_offset].count = current_count;
                     current_count = 0;
-                    last_shard_offset = pair.shard_offset;
+                    last_shard_offset = pair->shard_offset;
                 }
 
                 current_count++;
@@ -166,15 +159,11 @@ void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair, 1 << 20> &shar
             if (current_count)
                 mapping[(shard_id << 16) | last_shard_offset].count = current_count;
 
-            //std::cout << "init: " << i << std::endl;
-
             guard lock(mutex);
             wait_condition.wait(lock, [&]{ return i == current_job; });
 
-            // std::cout << "run: "  << i << std::endl;
-
-            for (auto gram : mapped_shard)
-                ::fwrite(&gram.line_id, sizeof(uint32_t), 1, index_file);
+            for (ShardIndexPair *pair = consolidated_start; pair < consolidated_end; pair++)
+                ::fwrite(&pair->line_id, sizeof(uint32_t), 1, index_file);
 
             pb_process_shards.add();
 

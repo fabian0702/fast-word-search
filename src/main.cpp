@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 
     std::mutex build_mutex;
 
-    svr.Get("/build/", [&build_mutex](const httplib::Request &req, httplib::Response &res)
+    svr.Get("/build", [&build_mutex](const httplib::Request &req, httplib::Response &res)
             {
         std::lock_guard build_in_progress(build_mutex);         // enforce that only one build process runs at the same time (they might overwrite each others shards / output files)
 
@@ -44,37 +44,6 @@ int main(int argc, char *argv[])
 
         res.status = 200;
         res.set_content((const char *)results.data(), results.size() * sizeof(uint64_t), "application/octet-stream");
-    });
-
-    svr.Get("/search/results", [](const httplib::Request &req, httplib::Response &res)
-            {
-
-        if (!req.has_param("query")) {
-            res.status = 400;
-            res.set_content("No query parameter specified", "text/plain");
-
-            return;
-        }
-
-        std::string query = req.get_param_value("query");
-        
-        TrigramQuery query_engine;
-
-        auto results = query_engine.query_with_results(query);
-
-        res.status = 200;
-        res.set_chunked_content_provider(
-            "text/plain",
-            [results = std::move(results), index = size_t{0}](size_t, httplib::DataSink& sink) mutable {
-                if (index == results.size()) {
-                    sink.done();
-                    return true;
-                }
-
-                const auto& result = results[index++];
-                return sink.write(result.data(), result.size());
-            }
-        ); 
     });
 
     svr.set_exception_handler([](const auto &req, auto &res, std::exception_ptr ep)

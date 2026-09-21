@@ -1,5 +1,4 @@
-#ifndef THREADPOOL_H
-#define THREADPOOL_H
+#pragma once
 
 #include <vector>
 #include <thread>
@@ -31,5 +30,3 @@ public:
             this->threads[i].join();
     }
 };
-
-#endif

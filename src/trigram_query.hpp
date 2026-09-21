@@ -1,5 +1,4 @@
-#ifndef TRIGRAM_QUERY_H
-#define TRIGRAM_QUERY_H
+#pragma once
 
 #include <algorithm>
 #include <iostream>
@@ -30,5 +29,3 @@ public:
 
     std::vector<uint64_t> query(const std::string &query_string);
 };
-
-#endif
