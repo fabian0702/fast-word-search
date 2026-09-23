@@ -10,31 +10,81 @@
 #include <type_traits>
 #include <mutex>
 
-struct MunmapDeleter
+constexpr std::size_t round_up(std::size_t value, std::size_t multiple)
 {
-    std::size_t bytes = 0;
+    auto rem = value % multiple;
+    return rem == 0 ? value : value + multiple - rem;
+}
 
-    void operator()(void *ptr) const noexcept
-    {
-        if (ptr)
-            munmap(ptr, bytes);
+template <typename T>
+class Mapping {
+    std::size_t _size;
+    std::size_t mapped_size;
+
+public:
+    void *ptr;
+
+    Mapping() : _size(0), ptr(nullptr), mapped_size(0) {}
+
+    Mapping(std::size_t size, int prot, int flags) : _size(size) {
+        if (size == 0) {
+            this->mapped_size = 0;
+            this->ptr = nullptr;
+
+            return;
+        }
+
+        this->mapped_size = round_up(size * sizeof(T), 0x1000);
+
+        this->ptr = mmap(
+            nullptr,
+            this->mapped_size,
+            prot,
+            flags,
+            -1,
+            0);
+
+        if (this->ptr == MAP_FAILED)
+        {
+            std::perror("mmap");
+            throw std::runtime_error("failed to mmap new chunk");
+        }
+    }
+
+
+    ~Mapping() {
+        if (this->ptr != nullptr)
+            munmap(this->ptr, this->mapped_size);
+    }
+
+    T *begin() {
+        return (T*)this->ptr;
+    }
+
+    T *end() {
+        return (T*)this->ptr + this->_size;
+    }
+
+    T& at(std::size_t index) {
+        return static_cast<T *>(this->ptr)[index];
+    }
+
+    std::size_t size() {
+        return this->_size;
     }
 };
 
 template <typename T>
-using Mapping = std::unique_ptr<T, MunmapDeleter>;
-
-template <typename T>
 class Shard
 {
-    static constexpr std::size_t CHUNK_SIZE = 16 * 1024 * 1024;
+    static constexpr std::size_t CHUNK_SIZE = 4096; //16 * 1024 * 1024;
     static constexpr std::size_t CHUNK_CAPACITY = CHUNK_SIZE / sizeof(T);
 
     static_assert(std::is_trivially_copyable_v<T>);
     static_assert(std::is_trivially_destructible_v<T>);
     static_assert(CHUNK_SIZE % sizeof(T) == 0);
 
-    std::vector<T *> chunks;
+    std::vector<std::unique_ptr<Mapping<T>>> chunks;
 
     std::size_t _size = 0;
 
@@ -42,36 +92,15 @@ class Shard
 
     void grow()
     {
-        T *new_chunk = (T *)mmap(
-            nullptr,
-            CHUNK_SIZE,
-            PROT_READ | PROT_WRITE,
-            MAP_ANONYMOUS | MAP_PRIVATE,
-            -1,
-            0);
+        auto new_mapping = std::make_unique<Mapping<T>>(CHUNK_CAPACITY, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS);
 
-        if (new_chunk == MAP_FAILED)
+        if (madvise(new_mapping->ptr, CHUNK_SIZE, MADV_POPULATE_WRITE) != 0)
         {
-            std::perror("mmap");
-            throw std::runtime_error("failed to mmap new chunk");
-        }
-
-        if (madvise(new_chunk, CHUNK_SIZE, MADV_POPULATE_WRITE) != 0)
-        {
-            munmap(new_chunk, CHUNK_SIZE);
             std::perror("madvise");
             throw std::runtime_error("failed to madvise new chunk");
         }
 
-        try
-        {
-            chunks.push_back(new_chunk);
-        }
-        catch (...)
-        {
-            munmap(new_chunk, CHUNK_SIZE);
-            throw;
-        }
+        chunks.push_back(std::move(new_mapping));
     }
 
 public:
@@ -80,35 +109,23 @@ public:
     Shard(const Shard &) = delete;
     Shard &operator=(const Shard &) = delete;
 
-    Mapping<T> consolidate()
+    std::unique_ptr<Mapping<T>> consolidate()
     {
         if (this->chunks.size() == 0)
-            return Mapping<T>(nullptr);
+            return std::make_unique<Mapping<T>>();
 
-        std::size_t consolidated_size = this->chunks.size() * CHUNK_SIZE;
+        std::size_t consolidated_size = this->chunks.size() * CHUNK_CAPACITY;
 
-        std::byte *consolidated_ptr = (std::byte *)mmap(
-            NULL,
-            consolidated_size,
-            PROT_NONE,
-            MAP_PRIVATE | MAP_ANONYMOUS,
-            -1,
-            0);
-
-        if (consolidated_ptr == MAP_FAILED)
-        {
-            std::perror("mmap");
-            throw std::runtime_error("failed to mmap consolidated area");
-        }
+        auto consolidated_mapping = std::make_unique<Mapping<T>>(consolidated_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS);
 
         for (int i = 0; i < this->chunks.size(); i++)
         {
             void *relocated = mremap(
-                this->chunks[i],
+                this->chunks[i]->ptr,
                 CHUNK_SIZE,
                 CHUNK_SIZE,
                 MREMAP_FIXED | MREMAP_MAYMOVE,
-                consolidated_ptr + (i * CHUNK_SIZE));
+                (std::byte *)consolidated_mapping->ptr + (i * CHUNK_SIZE));
 
             if (relocated == MAP_FAILED)
             {
@@ -116,12 +133,12 @@ public:
                 throw std::runtime_error("failed to remap shard chunk");
             }
 
-            chunks[i] = static_cast<T *>(relocated);
+            this->chunks[i]->ptr = nullptr;
         }
 
         this->chunks.clear();
 
-        return Mapping<T>((T *)consolidated_ptr, MunmapDeleter{consolidated_size});
+        return consolidated_mapping;
     }
 
     void push(const std::vector<T> &obj)
@@ -144,20 +161,14 @@ public:
             const std::size_t chunk_index = index / CHUNK_CAPACITY;
             const std::size_t chunk_offset = index % CHUNK_CAPACITY;
 
-            this->chunks[chunk_index][chunk_offset] = obj[i];
+            this->chunks[chunk_index]->at(chunk_offset) = obj[i];
         }
 
-        this->_size += required_size;
+        this->_size = required_size;
     }
 
     std::size_t size()
     {
         return this->_size;
-    }
-
-    ~Shard()
-    {
-        for (auto chunk : this->chunks)
-            munmap(chunk, CHUNK_SIZE);
     }
 };

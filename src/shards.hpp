@@ -70,7 +70,7 @@ public:
     uint64_t find_non_empty_shards()
     {
         for (int i = 0; i < NUM_SHARDS; i++)
-            if (this->shards.size() != 0)
+            if (this->shards[i].size() != 0)
                 this->non_empty_shards.push_back(i);
 
         return this->non_empty_shards.size();

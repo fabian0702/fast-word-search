@@ -116,16 +116,16 @@ void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair> &shards_manage
     using guard = std::unique_lock<std::mutex>;
     uint64_t current_job = 0;
 
-    auto shard_worker = [&](uint64_t start, uint64_t end, uint64_t step)
-    {
-        for (int i = start; i < end; i += step)
+    //auto shard_worker = [&](uint64_t start, uint64_t end, uint64_t step)
+    //{
+        for (int i = 0; i < num_non_empty_shards; i += 1)
         {
             int shard_id = shards_manager.non_empty_shards[i];
 
             auto consolidated = shards_manager.shards[shard_id].consolidate();
 
-            auto consolidated_start = consolidated.get();
-            auto consolidated_end = consolidated_start + shards_manager.shards[i].size();
+            auto consolidated_start = consolidated->begin();
+            auto consolidated_end = consolidated->end();
 
 
             std::sort(
@@ -171,10 +171,10 @@ void TrigramBuilder::process_shards(ShardsManager<ShardIndexPair> &shards_manage
 
             wait_condition.notify_all();
         }
-    };
+    //};
 
-    ThreadingPool processing_pool(num_non_empty_shards, shard_worker);
-    processing_pool.join();
+    // ThreadingPool processing_pool(num_non_empty_shards, shard_worker);
+    //processing_pool.join();
 
     pb_process_shards.finish();
 
