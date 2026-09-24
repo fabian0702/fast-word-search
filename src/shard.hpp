@@ -77,7 +77,7 @@ public:
 template <typename T>
 class Shard
 {
-    static constexpr std::size_t CHUNK_SIZE = 4096; //16 * 1024 * 1024;
+    static constexpr std::size_t CHUNK_SIZE = 16 * 1024 * 1024;
     static constexpr std::size_t CHUNK_CAPACITY = CHUNK_SIZE / sizeof(T);
 
     static_assert(std::is_trivially_copyable_v<T>);
