@@ -1,8 +1,23 @@
 services:
   query:
     build: .
+    environment:
+      POSTGRES_CONNECTION_URL: postgresql://search:password@postgres/search
     ports:
       - 8000:8000
     volumes:
       - .:/app/
-    command: "/app/output.txt"
+
+  postgres:
+    image: postgres
+    
+    ports:
+      - 5432:5432
+
+    volumes:
+      - ./words.sql:/docker-entrypoint-initdb.d/words.sql
+
+    environment:
+      POSTGRES_USER: search
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: search

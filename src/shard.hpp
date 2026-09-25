@@ -19,26 +19,25 @@ constexpr std::size_t round_up(std::size_t value, std::size_t multiple)
 template <typename T>
 class Mapping {
     std::size_t _size;
-    std::size_t mapped_size;
 
 public:
     void *ptr;
 
-    Mapping() : _size(0), ptr(nullptr), mapped_size(0) {}
+    Mapping() : _size(0), ptr(nullptr) {}
 
-    Mapping(std::size_t size, int prot, int flags) : _size(0) {
+    Mapping(std::size_t size, int prot, int flags) : _size(size) {
         if (size == 0) {
-            this->mapped_size = 0;
+            this->_size = 0;
             this->ptr = nullptr;
 
             return;
         }
 
-        this->mapped_size = round_up(size * sizeof(T), 0x1000);
+        this->_size = round_up(size * sizeof(T), 0x1000);
 
         this->ptr = mmap(
             nullptr,
-            this->mapped_size,
+            this->_size,
             prot,
             flags,
             -1,
@@ -54,7 +53,7 @@ public:
 
     ~Mapping() {
         if (this->ptr != nullptr)
-            munmap(this->ptr, this->mapped_size);
+            munmap(this->ptr, this->_size);
     }
 
     T *begin() {
@@ -122,8 +121,6 @@ public:
 
         auto consolidated_mapping = std::make_unique<Mapping<T>>(consolidated_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS);
 
-        std::size_t total_size = 0;
-
         for (int i = 0; i < this->chunks.size(); i++)
         {
             std::cout << "\n\n\nadding chunk " << i << std::endl;
@@ -140,16 +137,14 @@ public:
                 throw std::runtime_error("failed to remap shard chunk");
             }
 
-            total_size += this->chunks[i]->size();
-
             this->chunks[i]->ptr = nullptr;
         }
 
         this->chunks.clear();
 
-        std::cerr << "total size: " << total_size << std::endl;
+        std::cerr << "total size: " << this->size() << std::endl;
 
-        consolidated_mapping->set_size(total_size);
+        consolidated_mapping->set_size(this->size());
 
         return consolidated_mapping;
     }
@@ -157,6 +152,8 @@ public:
     void push(const std::vector<T> &obj)
     {
         std::unique_lock grow_lock(this->grow_mutex);
+
+        std::cout << "push" << std::endl;
 
         if (obj.empty())
             return;

@@ -1,7 +1,7 @@
 #include "database.hpp"
 
 const char *get_connection_url() {
-    char *connection_url = std::getenv("POSTGRES_URL");
+    char *connection_url = std::getenv("POSTGRES_CONNECTION_URL");
 
     std::cout << "conn url: " << connection_url << std::endl;
 
