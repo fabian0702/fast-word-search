@@ -43,6 +43,12 @@ public:
         std::lock_guard lock(mutex_);
 
         done_ = std::min(done_ + offset, total_);
+
+        if (done_ <= last_)
+            return;
+        if (done_ < next_ && done_ < total_)
+            return;
+
         next_ = std::min(total_, done_ + quantum);
         last_ = done_;
         render(done_);
@@ -64,7 +70,6 @@ public:
 private:
     void render(uint64_t done) const
     {
-        return;
         constexpr unsigned width = 40;
         const double ratio = total_ ? static_cast<double>(done) / total_ : 1.0;
         const unsigned filled = static_cast<unsigned>(ratio * width);

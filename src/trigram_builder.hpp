@@ -32,6 +32,8 @@ public:
 
     static uint32_t build_trigram(uint8_t *buffer);
 
+    static uint64_t compute_line_boundaries(MemoryMappedFile<uint8_t> &input_file, std::vector<uint64_t> &line_boundaries);
+
 private:
 
     static void create_mapping(MemoryMappedFile<MappingIndex> &mapping);
@@ -41,8 +43,6 @@ private:
     static void process_shards(ShardsManager<ShardIndexPair> &shards_manager, MemoryMappedFile<MappingIndex> &mapping);
 
     static void create_offsets_file(std::vector<uint64_t> &line_boundaries);
-
-    static uint64_t compute_line_boundaries(MemoryMappedFile<uint8_t> &input_file, std::vector<uint64_t> &line_boundaries);
 
     static size_t get_longest_line(std::vector<uint64_t> &line_boundaries);
 
