@@ -26,7 +26,7 @@ public:
 
     Mapping() : _size(0), ptr(nullptr), mapped_size(0) {}
 
-    Mapping(std::size_t size, int prot, int flags) : _size(size) {
+    Mapping(std::size_t size, int prot, int flags) : _size(0) {
         if (size == 0) {
             this->mapped_size = 0;
             this->ptr = nullptr;
@@ -67,6 +67,10 @@ public:
 
     T& at(std::size_t index) {
         return static_cast<T *>(this->ptr)[index];
+    }
+
+    void set_size(std::size_t size) {
+        this->_size = size;
     }
 
     std::size_t size() {
@@ -118,8 +122,11 @@ public:
 
         auto consolidated_mapping = std::make_unique<Mapping<T>>(consolidated_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS);
 
+        std::size_t total_size = 0;
+
         for (int i = 0; i < this->chunks.size(); i++)
         {
+            std::cout << "\n\n\nadding chunk " << i << std::endl;
             void *relocated = mremap(
                 this->chunks[i]->ptr,
                 CHUNK_SIZE,
@@ -133,10 +140,16 @@ public:
                 throw std::runtime_error("failed to remap shard chunk");
             }
 
+            total_size += this->chunks[i]->size();
+
             this->chunks[i]->ptr = nullptr;
         }
 
         this->chunks.clear();
+
+        std::cerr << "total size: " << total_size << std::endl;
+
+        consolidated_mapping->set_size(total_size);
 
         return consolidated_mapping;
     }

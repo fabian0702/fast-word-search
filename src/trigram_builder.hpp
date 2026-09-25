@@ -14,7 +14,7 @@
 
 #include "memory_mapped_file.hpp"
 #include "structs.hpp"
-#include "shards.hpp"
+#include "shardbuffer.hpp"
 #include "definitions.hpp"
 #include "progress.hpp"
 #include "thread_pool.hpp"

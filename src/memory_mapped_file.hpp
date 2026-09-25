@@ -1,5 +1,4 @@
-#ifndef MEMORY_MAPPED_FILE_H
-#define MEMORY_MAPPED_FILE_H
+#pragma once
 
 #include <sys/stat.h>
 #include <unistd.h>
@@ -44,18 +43,6 @@ public:
         {
             std::perror("mmap");
             throw std::runtime_error("mmap " + path);
-        }
-    }
-
-    MemoryMappedFile(size_t count)
-    {
-        this->fd = -1;
-
-        this->buffer = (T *)::mmap(0x0, count * sizeof(T), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
-        if (this->buffer == MAP_FAILED)
-        {
-            std::perror("mmap");
-            throw std::runtime_error("mmap ");
         }
     }
 
@@ -134,5 +121,3 @@ public:
         return this->_size;
     }
 };
-
-#endif

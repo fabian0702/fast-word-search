@@ -1,5 +1,4 @@
-#ifndef PROGRESS_H
-#define PROGRESS_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -65,6 +64,7 @@ public:
 private:
     void render(uint64_t done) const
     {
+        return;
         constexpr unsigned width = 40;
         const double ratio = total_ ? static_cast<double>(done) / total_ : 1.0;
         const unsigned filled = static_cast<unsigned>(ratio * width);
@@ -75,5 +75,3 @@ private:
                   << std::setprecision(1) << ratio * 100.0 << '%' << std::flush;
     }
 };
-
-#endif

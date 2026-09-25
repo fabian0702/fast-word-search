@@ -3,6 +3,8 @@
 
 #include "httplib.h"
 
+#include "database.hpp"
+
 #include <mutex>
 
 int main(int argc, char *argv[])
@@ -18,7 +20,12 @@ int main(int argc, char *argv[])
             {
         std::lock_guard build_in_progress(build_mutex);         // enforce that only one build process runs at the same time (they might overwrite each others shards / output files)
 
-        bool build_ids = req.has_param("ids") && req.get_param_value("ids") == "linear";
+        bool build_ids = req.has_param("debug") && req.get_param_value("ids") == "linear";
+
+        if (!build_ids) {
+            DatabaseConnector db;
+            db.request_content();
+        }
 
         TrigramBuilder::build(build_ids);
 

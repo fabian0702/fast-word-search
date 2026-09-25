@@ -4,6 +4,8 @@ OBJS := $(CPPSRC:.cpp=.o)
 
 CXXFLAGS := -g -O3 -DNDEBUG -std=c++20 -pthread
 
+LDLIBS := -lpqxx
+
 .PHONY: all clean
 
 all: main
